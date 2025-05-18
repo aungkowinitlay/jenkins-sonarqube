@@ -38,8 +38,9 @@ pipeline {
                         . venv/bin/activate
                         which pytest || echo "pytest not found"
                         pytest --version || echo "pytest version check failed"
+                        pytest --collect-only || echo "No tests collected"
                         pytest --cov=./ --cov-report=xml --junitxml=test-results.xml
-                        ls -l coverage.xml || echo "coverage.xml not found"
+                        ls -l coverage.xml test-results.xml || echo "Coverage or test results file not found"
                     '''
                 }
             }
@@ -48,7 +49,12 @@ pipeline {
             steps {
                 dir('backend') {
                     withSonarQubeEnv('SonarQube') {
-                        sh 'sonar-scanner'
+                        sh '''
+                            apt-get update && apt-get install -y wget unzip
+                            wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+                            unzip sonar-scanner-cli-5.0.1.3006-linux.zip
+                            ./sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner
+                        '''
                     }
                 }
             }
