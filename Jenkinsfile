@@ -2,7 +2,7 @@ pipeline {
     agent {
         docker {
             image 'python:3.12-slim'
-            args '-u root' // Run as root for package installation
+            args '-u root'
         }
     }
     environment {
@@ -20,12 +20,13 @@ pipeline {
             steps {
                 dir('backend') {
                     sh '''
+                        apt-get update && apt-get install -y python3-venv
                         python3 -m venv venv
                         . venv/bin/activate
                         pip install --upgrade pip
                         pip install pytest==7.4.0 pytest-cov==4.1.0
                         pip install -r requirements.txt || { echo "pip install failed"; exit 1; }
-                        pip list  # Debug: List installed packages
+                        pip list
                     '''
                 }
             }
@@ -100,7 +101,6 @@ pipeline {
     }
     post {
         always {
-            sh "docker logout"
             archiveArtifacts artifacts: 'backend/coverage.xml,backend/test-results.xml', allowEmptyArchive: true
         }
         success {
