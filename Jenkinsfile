@@ -1,5 +1,10 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'python:3.12-slim'
+            args '-u root' // Run as root for package installation
+        }
+    }
     environment {
         DOCKERHUB_CREDENTIALS = credentials('DOCKERHUB_CREDENTIALS')
         BACKEND_IMAGE = "aungkowin/flask-backend:latest"
@@ -17,7 +22,10 @@ pipeline {
                     sh '''
                         python3 -m venv venv
                         . venv/bin/activate
-                        pip install -r requirements.txt
+                        pip install --upgrade pip
+                        pip install pytest==7.4.0 pytest-cov==4.1.0
+                        pip install -r requirements.txt || { echo "pip install failed"; exit 1; }
+                        pip list  # Debug: List installed packages
                     '''
                 }
             }
@@ -27,7 +35,10 @@ pipeline {
                 dir('backend') {
                     sh '''
                         . venv/bin/activate
+                        which pytest || echo "pytest not found"
+                        pytest --version || echo "pytest version check failed"
                         pytest --cov=./ --cov-report=xml --junitxml=test-results.xml
+                        ls -l coverage.xml || echo "coverage.xml not found"
                     '''
                 }
             }
@@ -78,10 +89,11 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh '''
+                    docker network create my-app-network || true
                     docker rm -f flask-backend || true
                     docker rm -f nginx-frontend || true
-                    docker run -d --name flask-backend -p 5000:5000 ${BACKEND_IMAGE}
-                    docker run -d --name nginx-frontend -p 80:80 --link flask-backend ${FRONTEND_IMAGE}
+                    docker run -d --name flask-backend --network my-app-network -p 5000:5000 ${BACKEND_IMAGE}
+                    docker run -d --name nginx-frontend --network my-app-network -p 80:80 ${FRONTEND_IMAGE}
                 '''
             }
         }
